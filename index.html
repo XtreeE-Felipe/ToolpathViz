@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Toolpath Viewer (v2)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+        
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        #viewer {
+            flex: 1;
+            position: relative;
+            background: #0a0a0a;
+        }
+        
+        #sidebar {
+            width: 350px;
+            background: #252525;
+            overflow-y: auto;
+            padding: 20px;
+            border-left: 1px solid #333;
+        }
+        
+        #upload-zone {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 40px;
+            border: 3px dashed #555;
+            border-radius: 12px;
+            background: rgba(37, 37, 37, 0.9);
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 10;
+        }
+        
+        #upload-zone:hover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.1);
+        }
+        
+        #upload-zone.hidden {
+            display: none;
+        }
+        
+        #upload-zone h2 {
+            margin-bottom: 10px;
+            color: #4a9eff;
+        }
+        
+        #upload-zone p {
+            color: #888;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .metadata-section {
+            margin-bottom: 25px;
+        }
+        
+        .metadata-section h3 {
+            color: #4a9eff;
+            margin-bottom: 12px;
+            font-size: 16px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+        
+        .metadata-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        
+        .metadata-item:last-child {
+            border-bottom: none;
+        }
+        
+        .metadata-label {
+            color: #aaa;
+            font-size: 13px;
+        }
+        
+        .metadata-value {
+            color: #fff;
+            font-weight: 500;
+            font-size: 13px;
+            text-align: right;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(37, 37, 37, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 5;
+        }
+        
+        #controls button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+        
+        #controls button:hover {
+            background: #357abd;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4a9eff;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="viewer">
+            <div id="upload-zone">
+                <h2>📁 Upload Toolpath JSON</h2>
+                <p>Drag and drop your file here or click to browse</p>
+                <input type="file" id="file-input" accept=".json">
+            </div>
+            <div id="controls" class="hidden">
+                <button id="reset-view">Reset View</button>
+                <button id="reload-file">Load New File</button>
+            </div>
+        </div>
+        <div id="sidebar">
+            <h2 style="margin-bottom: 20px; color: #4a9eff;">Toolpath Data</h2>
+            
+            <!-- New Visualization Controls Section -->
+            <div class="metadata-section">
+                <h3>Visualization</h3>
+                <div class="metadata-item">
+                    <label for="color-by-select" class="metadata-label" style="color: #eee; font-weight: 500;">Color By:</label>
+                </div>
+                <select id="color-by-select" style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 14px; margin-top: 8px;">
+                    <option value="layer">Layer Height</option>
+                    <!-- Options will be dynamically populated here -->
+                </select>
+            </div>
+            
+            <div id="metadata-container">
+                <p style="color: #888; text-align: center;">No file loaded</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Three.js core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Load OrbitControls (must be from the same version as Three.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        let scene, camera, renderer, controls, toolpathGroup;
+        let uploadZone = document.getElementById('upload-zone');
+        let fileInput = document.getElementById('file-input');
+        let viewerDiv = document.getElementById('viewer');
+        let metadataContainer = document.getElementById('metadata-container');
+        let controlsDiv = document.getElementById('controls');
+        let colorBySelect = document.getElementById('color-by-select');
+        
+        let currentToolpathData = null; // Store the loaded data
+        let currentMinMax = { min: 0, max: 1 }; // Store min/max for current gradient
+
+        // ... initScene, animate functions are unchanged ...
+        
+        // Initialize Three.js scene
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+
+            camera = new THREE.PerspectiveCamera(
+                75,
+                viewerDiv.clientWidth / viewerDiv.clientHeight,
+                0.1,
+                10000
+            );
+            camera.position.set(200, 200, 200);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(viewerDiv.clientWidth, viewerDiv.clientHeight);
+            viewerDiv.appendChild(renderer.domElement);
+
+            // Setup OrbitControls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 10;
+            controls.maxDistance = 5000;
+            controls.target.set(0, 0, 0); // Set initial orbit target
+            controls.update();
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(100, 100, 100);
+            scene.add(directionalLight);
+
+            // Grid helper
+            const gridHelper = new THREE.GridHelper(400, 40, 0x444444, 0x222222);
+            scene.add(gridHelper);
+
+            // Axes helper
+            const axesHelper = new THREE.AxesHelper(100);
+            scene.add(axesHelper);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // only required if controls.enableDamping = true
+            renderer.render(scene, camera);
+        }
+
+        // --- New Helper Functions ---
+
+        /**
+         * Scans toolpath data to find all variable (array) properties
+         * and populates the color-by dropdown.
+         */
+        function populateColorByOptions(data) {
+            // Reset select
+            colorBySelect.innerHTML = '<option value="layer">Layer Height</option>';
+            
+            const toolpath = data.Toolpath;
+            if (!toolpath) return;
+
+            const firstLayerKey = Object.keys(toolpath)[0];
+            if (!firstLayerKey) return;
+            
+            const firstLayer = toolpath[firstLayerKey];
+            const potentialVariables = Object.keys(firstLayer);
+
+            potentialVariables.forEach(key => {
+                // A variable property must be an array and have the same
+                // length as the Positions array.
+                if (key !== 'Positions' && Array.isArray(firstLayer[key]) && firstLayer[key].length === firstLayer.Positions.length) {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = `Variable: ${key}`;
+                    colorBySelect.appendChild(option);
+                }
+            });
+        }
+
+        /**
+         * Finds the min/max values for a given variable across all layers.
+         */
+        function getMinMax(toolpath, dataKey) {
+            let min = Infinity;
+            let max = -Infinity;
+
+            Object.values(toolpath).forEach(layer => {
+                const dataArray = layer[dataKey];
+                if (dataArray && Array.isArray(dataArray)) {
+                    // Start from i=1 as you suggested, to ignore the first point
+                    for (let i = 1; i < dataArray.length; i++) {
+                        const value = dataArray[i];
+                        if (value < min) min = value;
+                        if (value > max) max = value;
+                    }
+                }
+            });
+            
+            if (min === max) { // Handle case with only one value
+                return { min: min - 0.5, max: max + 0.5 };
+            }
+            
+            return { min, max };
+        }
+
+        /**
+         * Maps a value from a min/max range to a "cool-to-hot" HSL color.
+         * Blue (0.66) -> Green (0.33) -> Red (0.0)
+         */
+        function getColorFromGradient(value, min, max) {
+            if (min === max) return new THREE.Color().setHSL(0.7, 0.56, 0.45); // Default to blue
+            
+            const normalized = (value - min) / (max - min);
+            // Hue from 0.66 (blue) down to 0.0 (red)
+            const hue = (1.0 - normalized) * 0.66; 
+            return new THREE.Color().setHSL(hue, 1.0, 0.5);
+        }
+
+        // --- Updated Visualization Logic ---
+        
+        /**
+         * Parse and visualize toolpath
+         * @param {string} colorByKey - The data key to use for coloring ("layer" or a variable key like "FlowRate")
+         */
+        function visualizeToolpath(colorByKey = 'layer') {
+            if (!currentToolpathData) return; // No data loaded
+            
+            const data = currentToolpathData;
+
+            if (toolpathGroup) {
+                scene.remove(toolpathGroup);
+            }
+
+            toolpathGroup = new THREE.Group();
+            const toolpath = data.Toolpath;
+            const layerCount = Object.keys(toolpath).length;
+            
+            // Get min/max if coloring by a variable
+            if (colorByKey !== 'layer') {
+                currentMinMax = getMinMax(toolpath, colorByKey);
+            }
+
+            Object.keys(toolpath).forEach((layerKey, layerIndex) => {
+                const layer = toolpath[layerKey];
+                const positions = layer.Positions;
+                const variableData = layer[colorByKey]; // e.g., layer.FlowRate
+
+                if (!positions || positions.length < 2) return;
+
+                // --- Path 1: Default coloring by Layer Height ---
+                if (colorByKey === 'layer' || !Array.isArray(variableData) || variableData.length !== positions.length) {
+                    const points = positions.map(posStr => {
+                        const [x, y, z] = posStr.split(',').map(Number);
+                        return new THREE.Vector3(x, z, y); // Map Z to Y
+                    });
+
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    
+                    const hue = 0.55;
+                    //const hue = (layerIndex / layerCount) * 0.7;
+                    const color = new THREE.Color().setHSL(hue, 1, 0.45);
+                    
+                    const material = new THREE.LineBasicMaterial({ color: color });
+
+                    const line = new THREE.Line(geometry, material);
+                    toolpathGroup.add(line);
+                
+                // --- Path 2: New coloring by Variable Data ---
+                } else {
+                    const lineVertices = [];
+                    const lineColors = [];
+
+                    // Loop from i=1 to N-1 (N points = N-1 segments)
+                    // We use the value at point i to color the segment from i-1 to i
+                    for (let i = 1; i < positions.length; i++) {
+                        const [x1, y1, z1] = positions[i-1].split(',').map(Number);
+                        const [x2, y2, z2] = positions[i].split(',').map(Number);
+                        
+                        // Add start and end points for this segment
+                        lineVertices.push(x1, z1, y1); // p1
+                        lineVertices.push(x2, z2, y2); // p2
+
+                        // Get the value at the *end* of the segment
+                        const value = variableData[i];
+                        const color = getColorFromGradient(value, currentMinMax.min, currentMinMax.max);
+                        
+                        // Add the color for both vertices
+                        lineColors.push(color.r, color.g, color.b);
+                        lineColors.push(color.r, color.g, color.b);
+                    }
+
+                    const geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(lineVertices, 3));
+                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
+                    
+                    // We use LineSegments, which draws one line for each pair of vertices
+                    const material = new THREE.LineBasicMaterial({ vertexColors: true });
+                    const lineSegments = new THREE.LineSegments(geometry, material);
+                    toolpathGroup.add(lineSegments);
+                }
+            });
+
+            scene.add(toolpathGroup);
+
+            // Only refocus camera if this is the *first* load
+            if (colorByKey === 'layer') {
+                const box = new THREE.Box3().setFromObject(toolpathGroup);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                
+                const fov = camera.fov * (Math.PI / 180);
+                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 1.5;
+                
+                camera.position.set(center.x, center.y + cameraDistance / 2, center.z + cameraDistance);
+                
+                if (controls) {
+                    controls.target.copy(center);
+                    controls.update();
+                } else {
+                    camera.lookAt(center);
+                }
+            }
+        }
+
+        // ... displayMetadata function is unchanged ...
+        function displayMetadata(data) {
+            let html = '';
+
+            // Object Info
+            if (data.ObjectInfo) {
+                html += '<div class="metadata-section"><h3>Object Information</h3>';
+                Object.entries(data.ObjectInfo).forEach(([key, value]) => {
+                    html += `<div class="metadata-item">
+                        <span class="metadata-label">${key}</span>
+                        <span class="metadata-value">${value}</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            // Analysis Data
+            if (data.AnalysisData) {
+                html += '<div class="metadata-section"><h3>Analysis Data</h3>';
+                Object.entries(data.AnalysisData).forEach(([key, value]) => {
+                    html += `<div class="metadata-item">
+                        <span class="metadata-label">${key}</span>
+                        <span class="metadata-value">${value}</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            // Toolpath Data Range
+            if (data.ToolpathDataRange) {
+                html += '<div class="metadata-section"><h3>Toolpath Data Range</h3>';
+                Object.entries(data.ToolpathDataRange).forEach(([key, value]) => {
+                    html += `<div class="metadata-item">
+                        <span class="metadata-label">${key}</span>
+                        <span class="metadata-value">${value}</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            // Layer count
+            const layerCount = Object.keys(data.Toolpath || {}).length;
+            html += `<div class="metadata-section"><h3>Toolpath Summary</h3>
+                <div class="metadata-item">
+                    <span class="metadata-label">Total Layers</span>
+                    <span class="metadata-value">${layerCount}</span>
+                </div>
+            </div>`;
+
+            metadataContainer.innerHTML = html;
+        }
+
+
+        // --- Updated File Handling ---
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    currentToolpathData = JSON.parse(e.target.result); // Store data
+                    
+                    populateColorByOptions(currentToolpathData); // Populate dropdown
+                    visualizeToolpath('layer'); // Initial render by layer
+                    displayMetadata(currentToolpathData);
+                    
+                    uploadZone.classList.add('hidden');
+                    controlsDiv.classList.remove('hidden');
+                } catch (error) {
+                    alert('Error parsing JSON file: ' + error.message);
+                    currentToolpathData = null; // Clear data on error
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Event Listeners ---
+        
+        // New listener for the color-by dropdown
+        colorBySelect.addEventListener('change', (e) => {
+            visualizeToolpath(e.target.value);
+        });
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.style.borderColor = '#4a9eff';
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.style.borderColor = '#555';
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.style.borderColor = '#555';
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        document.getElementById('reset-view').addEventListener('click', () => {
+            if (toolpathGroup && controls) {
+                // Re-frame the object
+                const box = new THREE.Box3().setFromObject(toolpathGroup);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+
+                const fov = camera.fov * (Math.PI / 180);
+                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 1.5;
+
+                camera.position.set(center.x, center.y + cameraDistance / 2, center.z + cameraDistance);
+                controls.target.copy(center);
+                controls.update();
+            } else if (controls) {
+                // Default view if no toolpath
+                camera.position.set(200, 200, 200);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+        });
+
+        document.getElementById('reload-file').addEventListener('click', () => {
+            uploadZone.classList.remove('hidden');
+            controlsDiv.classList.add('hidden');
+            fileInput.value = ''; // Clear the file input
+
+            // Clear old toolpath and metadata
+            if (toolpathGroup) {
+                scene.remove(toolpathGroup);
+                toolpathGroup = null; // Clear the reference
+            }
+            metadataContainer.innerHTML = '<p style="color: #888; text-align: center;">No file loaded</p>';
+            
+            // Clear data and reset dropdown
+            currentToolpathData = null;
+            colorBySelect.innerHTML = '<option value="layer">Layer Height</option>';
+            
+            // Reset camera to default
+            if (controls) {
+                camera.position.set(200, 200, 200);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+        });
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = viewerDiv.clientWidth / viewerDiv.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(viewerDiv.clientWidth, viewerDiv.clientHeight);
+        });
+
+        // Initialize
+        initScene();
+    </script>
+</body>
+</html>
+
