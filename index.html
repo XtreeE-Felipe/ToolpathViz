@@ -255,7 +255,7 @@
          */
         function populateColorByOptions(data) {
             // Reset select
-            colorBySelect.innerHTML = '<option value="layer">Layer Height</option>';
+            colorBySelect.innerHTML = '<option value="layer">Default</option>';
             
             const toolpath = data.Toolpath;
             if (!toolpath) return;
@@ -348,7 +348,7 @@
 
                 if (!positions || positions.length < 2) return;
 
-                // --- Path 1: Default coloring by Layer Height ---
+                // --- Path 1: Default coloring by Default ---
                 if (colorByKey === 'layer' || !Array.isArray(variableData) || variableData.length !== positions.length) {
                     const points = positions.map(posStr => {
                         const [x, y, z] = posStr.split(',').map(Number);
@@ -567,7 +567,7 @@
             
             // Clear data and reset dropdown
             currentToolpathData = null;
-            colorBySelect.innerHTML = '<option value="layer">Layer Height</option>';
+            colorBySelect.innerHTML = '<option value="layer">Default</option>';
             
             // Reset camera to default
             if (controls) {
