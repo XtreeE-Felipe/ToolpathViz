@@ -167,7 +167,7 @@
                     <label for="color-by-select" class="metadata-label" style="color: #eee; font-weight: 500;">Color By:</label>
                 </div>
                 <select id="color-by-select" style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 14px; margin-top: 8px;">
-                    <option value="layer">Layer Height</option>
+                    <option value="layer">Default</option>
                     <!-- Options will be dynamically populated here -->
                 </select>
             </div>
@@ -202,12 +202,12 @@
             scene.background = new THREE.Color(0x0a0a0a);
 
             camera = new THREE.PerspectiveCamera(
-                75,
+                100,
                 viewerDiv.clientWidth / viewerDiv.clientHeight,
                 0.1,
                 10000
             );
-            camera.position.set(200, 200, 200);
+            camera.position.set(500, 500, 500);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(viewerDiv.clientWidth, viewerDiv.clientHeight);
