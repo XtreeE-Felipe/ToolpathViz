@@ -167,7 +167,6 @@
         <div id="sidebar">
             <h2 style="margin-bottom: 20px; color: #4a9eff;">Toolpath Data</h2>
             
-            <!-- New Visualization Controls Section -->
             <div class="metadata-section">
                 <h3>Visualization</h3>
                 <div class="metadata-item">
@@ -175,8 +174,7 @@
                 </div>
                 <select id="color-by-select" style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 14px; margin-top: 8px;">
                     <option value="layer">Default</option>
-                    <!-- Options will be dynamically populated here -->
-                </select>
+                    </select>
             </div>
             
             <div id="metadata-container">
@@ -185,9 +183,7 @@
         </div>
     </div>
 
-    <!-- Load Three.js core -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Load OrbitControls (must be from the same version as Three.js) -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
         let scene, camera, renderer, controls, toolpathGroup;
@@ -201,8 +197,6 @@
         let currentToolpathData = null; // Store the loaded data
         let currentMinMax = { min: 0, max: 1 }; // Store min/max for current gradient
 
-        // ... initScene, animate functions are unchanged ...
-        
         // Initialize Three.js scene
         function initScene() {
             scene = new THREE.Scene();
@@ -222,12 +216,12 @@
 
             // Setup OrbitControls
             controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+            controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.screenSpacePanning = false;
             controls.minDistance = 10;
             controls.maxDistance = 5000;
-            controls.target.set(0, 0, 0); // Set initial orbit target
+            controls.target.set(0, 0, 0);
             controls.update();
             
             // Add lights
@@ -250,32 +244,22 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            controls.update(); // only required if controls.enableDamping = true
+            controls.update();
             renderer.render(scene, camera);
         }
 
-        // --- New Helper Functions ---
+        // --- Helper Functions ---
 
-        /**
-         * Scans toolpath data to find all variable (array) properties
-         * and populates the color-by dropdown.
-         */
         function populateColorByOptions(data) {
-            // Reset select
             colorBySelect.innerHTML = '<option value="layer">Default</option>';
-            
             const toolpath = data.Toolpath;
             if (!toolpath) return;
-
             const firstLayerKey = Object.keys(toolpath)[0];
             if (!firstLayerKey) return;
-            
             const firstLayer = toolpath[firstLayerKey];
             const potentialVariables = Object.keys(firstLayer);
 
             potentialVariables.forEach(key => {
-                // A variable property must be an array and have the same
-                // length as the Positions array.
                 if (key !== 'Positions' && Array.isArray(firstLayer[key]) && firstLayer[key].length === firstLayer.Positions.length) {
                     const option = document.createElement('option');
                     option.value = key;
@@ -285,17 +269,12 @@
             });
         }
 
-        /**
-         * Finds the min/max values for a given variable across all layers.
-         */
         function getMinMax(toolpath, dataKey) {
             let min = Infinity;
             let max = -Infinity;
-
             Object.values(toolpath).forEach(layer => {
                 const dataArray = layer[dataKey];
                 if (dataArray && Array.isArray(dataArray)) {
-                    // Start from i=1 as you suggested, to ignore the first point
                     for (let i = 1; i < dataArray.length; i++) {
                         const value = dataArray[i];
                         if (value < min) min = value;
@@ -303,39 +282,21 @@
                     }
                 }
             });
-            
-            if (min === max) { // Handle case with only one value
-                return { min: min - 0.5, max: max + 0.5 };
-            }
-            
+            if (min === max) return { min: min - 0.5, max: max + 0.5 };
             return { min, max };
         }
 
-        /**
-         * Maps a value from a min/max range to a "cool-to-hot" HSL color.
-         * Blue (0.66) -> Green (0.33) -> Red (0.0)
-         */
         function getColorFromGradient(value, min, max) {
-            if (min === max) return new THREE.Color().setHSL(0.7, 0.56, 0.45); // Default to blue
-            
+            if (min === max) return new THREE.Color().setHSL(0.7, 0.56, 0.45);
             const normalized = (value - min) / (max - min);
-            // Hue from 0.66 (blue) down to 0.0 (red)
             const hue = (1.0 - normalized) * 0.66; 
             return new THREE.Color().setHSL(hue, 1.0, 0.5);
         }
 
-        // --- Updated Visualization Logic ---
+        // --- Visualization Logic (Single Polyline) ---
         
-        /**
-         * Parse and visualize toolpath
-         * @param {string} colorByKey - The data key to use for coloring ("layer" or a variable key like "FlowRate")
-         */
-        /**
-         * Parse and visualize toolpath as a single continuous polyline
-         * @param {string} colorByKey - The data key to use for coloring ("layer" or a variable key like "FlowRate")
-         */
         function visualizeToolpath(colorByKey = 'layer') {
-            if (!currentToolpathData) return; // No data loaded
+            if (!currentToolpathData) return;
             
             const data = currentToolpathData;
 
@@ -346,7 +307,6 @@
             toolpathGroup = new THREE.Group();
             const toolpath = data.Toolpath;
             
-            // Get min/max if coloring by a variable
             if (colorByKey !== 'layer') {
                 currentMinMax = getMinMax(toolpath, colorByKey);
             }
@@ -354,55 +314,43 @@
             const allPositions = [];
             const allColors = [];
 
-            // 1. Sort layer keys to ensure the polyline connects layers in order (0, 1, 2...)
+            // Sort layer keys (0, 1, 2...)
             const sortedKeys = Object.keys(toolpath).sort((a, b) => {
                 const numA = parseInt(a.replace(/[^0-9]/g, ''));
                 const numB = parseInt(b.replace(/[^0-9]/g, ''));
                 return numA - numB;
             });
 
-            const layerCount = sortedKeys.length;
-
-            // 2. Iterate through all layers and collect points
+            // Iterate through all layers
             sortedKeys.forEach((layerKey, layerIndex) => {
                 const layer = toolpath[layerKey];
                 const positions = layer.Positions;
-                const variableData = layer[colorByKey]; // e.g., layer.FlowRate
+                const variableData = layer[colorByKey];
 
                 if (!positions || positions.length === 0) return;
 
                 for (let i = 0; i < positions.length; i++) {
-                    // Parse position: X, Y, Z
                     const [x, y, z] = positions[i].split(',').map(Number);
-                    
-                    // Swap Y and Z for Three.js coordinate system (Z-up to Y-up)
-                    allPositions.push(x, z, y);
+                    allPositions.push(x, z, y); // Swap Y and Z
 
-                    // Calculate Color
                     let color;
                     if (colorByKey === 'layer' || !Array.isArray(variableData)) {
-                        // Default coloring (Fixed Blue to match original style)
-                        // You could also make this a gradient based on layerIndex if desired
                         const hue = 0.55; 
                         color = new THREE.Color().setHSL(hue, 1, 0.45);
                     } else {
-                        // Variable coloring based on data value
                         const value = variableData[i];
                         color = getColorFromGradient(value, currentMinMax.min, currentMinMax.max);
                     }
-
                     allColors.push(color.r, color.g, color.b);
                 }
             });
 
             if (allPositions.length === 0) return;
 
-            // 3. Create the single geometry
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(allPositions, 3));
             geometry.setAttribute('color', new THREE.Float32BufferAttribute(allColors, 3));
 
-            // 4. Create the single Line using vertex colors
             const material = new THREE.LineBasicMaterial({ vertexColors: true });
             const line = new THREE.Line(geometry, material);
             
@@ -416,6 +364,7 @@
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
                 
+                // Distance Multiplier 2.5
                 const fov = camera.fov * (Math.PI / 180);
                 const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 2.5;
                 
@@ -430,62 +379,37 @@
             }
         }
 
-        // ... displayMetadata function is unchanged ...
         function displayMetadata(data) {
             let html = '';
-
-            // Object Info
             if (data.ObjectInfo) {
                 html += '<div class="metadata-section"><h3>Object Information</h3>';
                 Object.entries(data.ObjectInfo).forEach(([key, value]) => {
-                    html += `<div class="metadata-item">
-                        <span class="metadata-label">${key}</span>
-                        <span class="metadata-value">${value}</span>
-                    </div>`;
+                    html += `<div class="metadata-item"><span class="metadata-label">${key}</span><span class="metadata-value">${value}</span></div>`;
                 });
                 html += '</div>';
             }
-
-            // Analysis Data
             if (data.AnalysisData) {
                 html += '<div class="metadata-section"><h3>Analysis Data</h3>';
                 Object.entries(data.AnalysisData).forEach(([key, value]) => {
-                    html += `<div class="metadata-item">
-                        <span class="metadata-label">${key}</span>
-                        <span class="metadata-value">${value}</span>
-                    </div>`;
+                    html += `<div class="metadata-item"><span class="metadata-label">${key}</span><span class="metadata-value">${value}</span></div>`;
                 });
                 html += '</div>';
             }
-
-            // Toolpath Data Range
             if (data.ToolpathDataRange) {
                 html += '<div class="metadata-section"><h3>Toolpath Data Range</h3>';
                 Object.entries(data.ToolpathDataRange).forEach(([key, value]) => {
-                    html += `<div class="metadata-item">
-                        <span class="metadata-label">${key}</span>
-                        <span class="metadata-value">${value}</span>
-                    </div>`;
+                    html += `<div class="metadata-item"><span class="metadata-label">${key}</span><span class="metadata-value">${value}</span></div>`;
                 });
                 html += '</div>';
             }
-
-            // Layer count
             const layerCount = Object.keys(data.Toolpath || {}).length;
-            html += `<div class="metadata-section"><h3>Toolpath Summary</h3>
-                <div class="metadata-item">
-                    <span class="metadata-label">Total Layers</span>
-                    <span class="metadata-value">${layerCount}</span>
-                </div>
-            </div>`;
-
+            html += `<div class="metadata-section"><h3>Toolpath Summary</h3><div class="metadata-item"><span class="metadata-label">Total Layers</span><span class="metadata-value">${layerCount}</span></div></div>`;
             metadataContainer.innerHTML = html;
         }
 
+        // --- File Handling ---
 
-        // --- Updated File Handling ---
-
-        // 1. Define the list of available files in /data
+        // List of available files in /data
         const sampleFiles = [
             "ScreenBase_v0_044902894.json",
             "S_Mur_2_v0_089206760.json",
@@ -496,7 +420,7 @@
 
         const sampleSelect = document.getElementById('sample-select');
 
-        // 2. Populate the dropdown
+        // Populate dropdown
         sampleFiles.forEach(fileName => {
             const option = document.createElement('option');
             option.value = fileName;
@@ -504,15 +428,13 @@
             sampleSelect.appendChild(option);
         });
 
-        // 3. Central function to load data into the viewer
+        // Central data loader
         function loadToolpathData(jsonContent) {
             try {
                 currentToolpathData = jsonContent; 
-                
                 populateColorByOptions(currentToolpathData);
                 visualizeToolpath('layer'); 
                 displayMetadata(currentToolpathData);
-                
                 uploadZone.classList.add('hidden');
                 controlsDiv.classList.remove('hidden');
             } catch (error) {
@@ -521,7 +443,23 @@
             }
         }
 
-        // 4. Handle local file uploads
+        // Helper to fetch sample file
+        function fetchSampleFile(fileName) {
+            fetch(`./data/${fileName}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    return response.json();
+                })
+                .then(json => {
+                    loadToolpathData(json);
+                })
+                .catch(error => {
+                    alert('Error loading sample file: ' + error.message + '\n\n(Make sure you are running this on a local server, not opening the file directly)');
+                    sampleSelect.value = "";
+                });
+        }
+
+        // Handle local file upload
         function handleFile(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -535,34 +473,36 @@
             reader.readAsText(file);
         }
 
-        // 5. Handle sample selection (Fetch from /data folder)
+        // --- Event Listeners ---
+
+        // 1. Handle Deep Linking on Load
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileParam = urlParams.get('file');
+        if (fileParam && sampleFiles.includes(fileParam)) {
+            sampleSelect.value = fileParam;
+            fetchSampleFile(fileParam);
+        }
+
+        // 2. Handle Sample Selection + Update URL
         sampleSelect.addEventListener('change', (e) => {
             const fileName = e.target.value;
-            if (!fileName) return;
-
-            // Assuming index.html is at root and data is in ./data/
-            fetch(`./data/${fileName}`)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    return response.json();
-                })
-                .then(json => {
-                    loadToolpathData(json);
-                })
-                .catch(error => {
-                    alert('Error loading sample file: ' + error.message);
-                    sampleSelect.value = ""; // Reset selection
-                });
+            if (fileName) {
+                const newUrl = new URL(window.location);
+                newUrl.searchParams.set('file', fileName);
+                window.history.pushState({}, '', newUrl);
+                
+                fetchSampleFile(fileName);
+            } else {
+                const newUrl = new URL(window.location);
+                newUrl.searchParams.delete('file');
+                window.history.pushState({}, '', newUrl);
+            }
         });
 
-        // --- Event Listeners ---
-        
-        // New listener for the color-by dropdown
         colorBySelect.addEventListener('change', (e) => {
             visualizeToolpath(e.target.value);
         });
 
-        // Only trigger file input if they didn't click the select box
         uploadZone.addEventListener('click', (e) => {
             if (e.target !== sampleSelect && e.target.tagName !== 'OPTION') {
                 fileInput.click();
@@ -593,33 +533,20 @@
         });
 
         document.getElementById('reset-view').addEventListener('click', () => {
-            if (toolpathGroup && controls) {
-                // Re-frame the object
-                const box = new THREE.Box3().setFromObject(toolpathGroup);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z);
-
-                const fov = camera.fov * (Math.PI / 180);
-                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 2.5;
-
-                camera.position.set(center.x + cameraDistance, center.y + cameraDistance / 2, center.z + cameraDistance);
-                controls.target.copy(center);
-                controls.update();
-            } else if (controls) {
-                // Default view if no toolpath
-                camera.position.set(200, 200, 200);
-                controls.target.set(0, 0, 0);
-                controls.update();
-            }
+            visualizeToolpath(colorBySelect.value); // Re-runs the camera centering logic
         });
 
-        // Update Reset button to also clear dropdown
         document.getElementById('reload-file').addEventListener('click', () => {
+            // Clear URL
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete('file');
+            window.history.pushState({}, '', newUrl);
+
+            // Reset UI
             uploadZone.classList.remove('hidden');
             controlsDiv.classList.add('hidden');
             fileInput.value = ''; 
-            sampleSelect.value = ""; // Reset dropdown
+            sampleSelect.value = ""; 
             
             if (toolpathGroup) {
                 scene.remove(toolpathGroup);
@@ -630,22 +557,19 @@
             colorBySelect.innerHTML = '<option value="layer">Default</option>';
             
             if (controls) {
-                camera.position.set(800, 800, 800); // Updated default pos
+                camera.position.set(500, 500, 500);
                 controls.target.set(0, 0, 0);
                 controls.update();
             }
         });
 
-        // Window resize
         window.addEventListener('resize', () => {
             camera.aspect = viewerDiv.clientWidth / viewerDiv.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(viewerDiv.clientWidth, viewerDiv.clientHeight);
         });
 
-        // Initialize
         initScene();
     </script>
 </body>
 </html>
-
