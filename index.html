@@ -151,6 +151,13 @@
                 <h2>📁 Upload Toolpath JSON</h2>
                 <p>Drag and drop your file here or click to browse</p>
                 <input type="file" id="file-input" accept=".json">
+                
+                <div style="margin: 20px 0; border-top: 1px solid #555; padding-top: 20px;">
+                    <p style="margin-bottom: 10px; font-size: 14px; color: #aaa;">OR select a sample:</p>
+                    <select id="sample-select" style="background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; width: 100%;">
+                        <option value="">-- Select a Sample --</option>
+                        </select>
+                </div>
             </div>
             <div id="controls" class="hidden">
                 <button id="reset-view">Reset View</button>
@@ -478,25 +485,75 @@
 
         // --- Updated File Handling ---
 
+        // 1. Define the list of available files in /data
+        const sampleFiles = [
+            "ScreenBase_v0_044902894.json",
+            "S_Mur_2_v0_089206760.json",
+            "ProtoFolie_v1_070908868.json",
+            "LargeScalePrototype_v1_075728131.json",
+            "FieldsColumn_v3_069786330.json"
+        ];
+
+        const sampleSelect = document.getElementById('sample-select');
+
+        // 2. Populate the dropdown
+        sampleFiles.forEach(fileName => {
+            const option = document.createElement('option');
+            option.value = fileName;
+            option.textContent = fileName;
+            sampleSelect.appendChild(option);
+        });
+
+        // 3. Central function to load data into the viewer
+        function loadToolpathData(jsonContent) {
+            try {
+                currentToolpathData = jsonContent; 
+                
+                populateColorByOptions(currentToolpathData);
+                visualizeToolpath('layer'); 
+                displayMetadata(currentToolpathData);
+                
+                uploadZone.classList.add('hidden');
+                controlsDiv.classList.remove('hidden');
+            } catch (error) {
+                alert('Error processing toolpath data: ' + error.message);
+                currentToolpathData = null;
+            }
+        }
+
+        // 4. Handle local file uploads
         function handleFile(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    currentToolpathData = JSON.parse(e.target.result); // Store data
-                    
-                    populateColorByOptions(currentToolpathData); // Populate dropdown
-                    visualizeToolpath('layer'); // Initial render by layer
-                    displayMetadata(currentToolpathData);
-                    
-                    uploadZone.classList.add('hidden');
-                    controlsDiv.classList.remove('hidden');
+                    const json = JSON.parse(e.target.result);
+                    loadToolpathData(json);
                 } catch (error) {
                     alert('Error parsing JSON file: ' + error.message);
-                    currentToolpathData = null; // Clear data on error
                 }
             };
             reader.readAsText(file);
         }
+
+        // 5. Handle sample selection (Fetch from /data folder)
+        sampleSelect.addEventListener('change', (e) => {
+            const fileName = e.target.value;
+            if (!fileName) return;
+
+            // Assuming index.html is at root and data is in ./data/
+            fetch(`./data/${fileName}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    return response.json();
+                })
+                .then(json => {
+                    loadToolpathData(json);
+                })
+                .catch(error => {
+                    alert('Error loading sample file: ' + error.message);
+                    sampleSelect.value = ""; // Reset selection
+                });
+        });
 
         // --- Event Listeners ---
         
@@ -505,7 +562,12 @@
             visualizeToolpath(e.target.value);
         });
 
-        uploadZone.addEventListener('click', () => fileInput.click());
+        // Only trigger file input if they didn't click the select box
+        uploadZone.addEventListener('click', (e) => {
+            if (e.target !== sampleSelect && e.target.tagName !== 'OPTION') {
+                fileInput.click();
+            }
+        });
         
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
@@ -552,25 +614,23 @@
             }
         });
 
+        // Update Reset button to also clear dropdown
         document.getElementById('reload-file').addEventListener('click', () => {
             uploadZone.classList.remove('hidden');
             controlsDiv.classList.add('hidden');
-            fileInput.value = ''; // Clear the file input
-
-            // Clear old toolpath and metadata
+            fileInput.value = ''; 
+            sampleSelect.value = ""; // Reset dropdown
+            
             if (toolpathGroup) {
                 scene.remove(toolpathGroup);
-                toolpathGroup = null; // Clear the reference
+                toolpathGroup = null; 
             }
             metadataContainer.innerHTML = '<p style="color: #888; text-align: center;">No file loaded</p>';
-            
-            // Clear data and reset dropdown
             currentToolpathData = null;
             colorBySelect.innerHTML = '<option value="layer">Default</option>';
             
-            // Reset camera to default
             if (controls) {
-                camera.position.set(200, 200, 200);
+                camera.position.set(800, 800, 800); // Updated default pos
                 controls.target.set(0, 0, 0);
                 controls.update();
             }
