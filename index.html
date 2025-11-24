@@ -202,7 +202,7 @@
             scene.background = new THREE.Color(0x0a0a0a);
 
             camera = new THREE.PerspectiveCamera(
-                100,
+                35,
                 viewerDiv.clientWidth / viewerDiv.clientHeight,
                 0.1,
                 10000
@@ -410,9 +410,9 @@
                 const maxDim = Math.max(size.x, size.y, size.z);
                 
                 const fov = camera.fov * (Math.PI / 180);
-                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 1.5;
+                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 2.5;
                 
-                camera.position.set(center.x, center.y + cameraDistance / 2, center.z + cameraDistance);
+                camera.position.set(center.x + cameraDistance, center.y + cameraDistance / 2, center.z + cameraDistance);
                 
                 if (controls) {
                     controls.target.copy(center);
@@ -539,9 +539,9 @@
                 const maxDim = Math.max(size.x, size.y, size.z);
 
                 const fov = camera.fov * (Math.PI / 180);
-                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 1.5;
+                const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 2.5;
 
-                camera.position.set(center.x, center.y + cameraDistance / 2, center.z + cameraDistance);
+                camera.position.set(center.x + cameraDistance, center.y + cameraDistance / 2, center.z + cameraDistance);
                 controls.target.copy(center);
                 controls.update();
             } else if (controls) {
