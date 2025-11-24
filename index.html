@@ -323,6 +323,10 @@
          * Parse and visualize toolpath
          * @param {string} colorByKey - The data key to use for coloring ("layer" or a variable key like "FlowRate")
          */
+        /**
+         * Parse and visualize toolpath as a single continuous polyline
+         * @param {string} colorByKey - The data key to use for coloring ("layer" or a variable key like "FlowRate")
+         */
         function visualizeToolpath(colorByKey = 'layer') {
             if (!currentToolpathData) return; // No data loaded
             
@@ -334,76 +338,71 @@
 
             toolpathGroup = new THREE.Group();
             const toolpath = data.Toolpath;
-            const layerCount = Object.keys(toolpath).length;
             
             // Get min/max if coloring by a variable
             if (colorByKey !== 'layer') {
                 currentMinMax = getMinMax(toolpath, colorByKey);
             }
 
-            Object.keys(toolpath).forEach((layerKey, layerIndex) => {
+            const allPositions = [];
+            const allColors = [];
+
+            // 1. Sort layer keys to ensure the polyline connects layers in order (0, 1, 2...)
+            const sortedKeys = Object.keys(toolpath).sort((a, b) => {
+                const numA = parseInt(a.replace(/[^0-9]/g, ''));
+                const numB = parseInt(b.replace(/[^0-9]/g, ''));
+                return numA - numB;
+            });
+
+            const layerCount = sortedKeys.length;
+
+            // 2. Iterate through all layers and collect points
+            sortedKeys.forEach((layerKey, layerIndex) => {
                 const layer = toolpath[layerKey];
                 const positions = layer.Positions;
                 const variableData = layer[colorByKey]; // e.g., layer.FlowRate
 
-                if (!positions || positions.length < 2) return;
+                if (!positions || positions.length === 0) return;
 
-                // --- Path 1: Default coloring by Default ---
-                if (colorByKey === 'layer' || !Array.isArray(variableData) || variableData.length !== positions.length) {
-                    const points = positions.map(posStr => {
-                        const [x, y, z] = posStr.split(',').map(Number);
-                        return new THREE.Vector3(x, z, y); // Map Z to Y
-                    });
-
-                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                for (let i = 0; i < positions.length; i++) {
+                    // Parse position: X, Y, Z
+                    const [x, y, z] = positions[i].split(',').map(Number);
                     
-                    const hue = 0.55;
-                    //const hue = (layerIndex / layerCount) * 0.7;
-                    const color = new THREE.Color().setHSL(hue, 1, 0.45);
-                    
-                    const material = new THREE.LineBasicMaterial({ color: color });
+                    // Swap Y and Z for Three.js coordinate system (Z-up to Y-up)
+                    allPositions.push(x, z, y);
 
-                    const line = new THREE.Line(geometry, material);
-                    toolpathGroup.add(line);
-                
-                // --- Path 2: New coloring by Variable Data ---
-                } else {
-                    const lineVertices = [];
-                    const lineColors = [];
-
-                    // Loop from i=1 to N-1 (N points = N-1 segments)
-                    // We use the value at point i to color the segment from i-1 to i
-                    for (let i = 1; i < positions.length; i++) {
-                        const [x1, y1, z1] = positions[i-1].split(',').map(Number);
-                        const [x2, y2, z2] = positions[i].split(',').map(Number);
-                        
-                        // Add start and end points for this segment
-                        lineVertices.push(x1, z1, y1); // p1
-                        lineVertices.push(x2, z2, y2); // p2
-
-                        // Get the value at the *end* of the segment
+                    // Calculate Color
+                    let color;
+                    if (colorByKey === 'layer' || !Array.isArray(variableData)) {
+                        // Default coloring (Fixed Blue to match original style)
+                        // You could also make this a gradient based on layerIndex if desired
+                        const hue = 0.55; 
+                        color = new THREE.Color().setHSL(hue, 1, 0.45);
+                    } else {
+                        // Variable coloring based on data value
                         const value = variableData[i];
-                        const color = getColorFromGradient(value, currentMinMax.min, currentMinMax.max);
-                        
-                        // Add the color for both vertices
-                        lineColors.push(color.r, color.g, color.b);
-                        lineColors.push(color.r, color.g, color.b);
+                        color = getColorFromGradient(value, currentMinMax.min, currentMinMax.max);
                     }
 
-                    const geometry = new THREE.BufferGeometry();
-                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(lineVertices, 3));
-                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
-                    
-                    // We use LineSegments, which draws one line for each pair of vertices
-                    const material = new THREE.LineBasicMaterial({ vertexColors: true });
-                    const lineSegments = new THREE.LineSegments(geometry, material);
-                    toolpathGroup.add(lineSegments);
+                    allColors.push(color.r, color.g, color.b);
                 }
             });
 
+            if (allPositions.length === 0) return;
+
+            // 3. Create the single geometry
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(allPositions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(allColors, 3));
+
+            // 4. Create the single Line using vertex colors
+            const material = new THREE.LineBasicMaterial({ vertexColors: true });
+            const line = new THREE.Line(geometry, material);
+            
+            toolpathGroup.add(line);
             scene.add(toolpathGroup);
 
-            // Only refocus camera if this is the *first* load
+            // Recenter camera if this is the default view
             if (colorByKey === 'layer') {
                 const box = new THREE.Box3().setFromObject(toolpathGroup);
                 const center = box.getCenter(new THREE.Vector3());
