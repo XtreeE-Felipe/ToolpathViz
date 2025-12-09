@@ -143,6 +143,59 @@
             color: #4a9eff;
             font-size: 18px;
         }
+
+        .legend-container {
+            margin-bottom: 25px;
+            display: none;
+        }
+
+        .legend-container.visible {
+            display: block;
+        }
+
+        .legend-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 12px;
+        }
+
+        .legend-gradient {
+            width: 30px;
+            height: 200px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: linear-gradient(to top,
+                    hsl(240, 100%, 50%) 0%,
+                    hsl(180, 100%, 50%) 25%,
+                    hsl(120, 100%, 50%) 50%,
+                    hsl(60, 100%, 50%) 75%,
+                    hsl(0, 100%, 50%) 100%);
+        }
+
+        .legend-labels {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 200px;
+            font-size: 13px;
+        }
+
+        .legend-label {
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+        }
+
+        .legend-label-title {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 2px;
+        }
+
+        .legend-label-value {
+            font-weight: 500;
+        }
     </style>
 </head>
 
@@ -180,6 +233,28 @@
                     style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 14px; margin-top: 8px;">
                     <option value="layer">Default</option>
                 </select>
+            </div>
+
+            <div id="legend-container" class="legend-container">
+                <div class="metadata-section">
+                    <h3>Color Legend</h3>
+                    <div class="legend-content">
+                        <div class="legend-gradient"></div>
+                        <div class="legend-labels">
+                            <div class="legend-label">
+                                <span class="legend-label-title">Maximum</span>
+                                <span class="legend-label-value" id="legend-max">0</span>
+                            </div>
+                            <div class="legend-label">
+                                <span class="legend-label-title">Minimum</span>
+                                <span class="legend-label-value" id="legend-min">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 12px; color: #aaa;">
+                        <span id="legend-variable-name"></span>
+                    </div>
+                </div>
             </div>
 
             <div id="metadata-container">
@@ -280,10 +355,12 @@
             Object.values(toolpath).forEach(layer => {
                 const dataArray = layer[dataKey];
                 if (dataArray && Array.isArray(dataArray)) {
-                    for (let i = 1; i < dataArray.length; i++) {
-                        const value = dataArray[i];
-                        if (value < min) min = value;
-                        if (value > max) max = value;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        const value = parseFloat(dataArray[i]);
+                        if (!isNaN(value) && isFinite(value)) {
+                            if (value < min) min = value;
+                            if (value > max) max = value;
+                        }
                     }
                 }
             });
@@ -296,6 +373,31 @@
             const normalized = (value - min) / (max - min);
             const hue = (1.0 - normalized) * 0.66;
             return new THREE.Color().setHSL(hue, 1.0, 0.5);
+        }
+
+        function updateLegend(colorByKey) {
+            const legendContainer = document.getElementById('legend-container');
+            const legendMin = document.getElementById('legend-min');
+            const legendMax = document.getElementById('legend-max');
+            const legendVariableName = document.getElementById('legend-variable-name');
+
+            if (colorByKey === 'layer') {
+                legendContainer.classList.remove('visible');
+            } else {
+                legendContainer.classList.add('visible');
+
+                // Check if values are valid finite numbers
+                const minValue = (typeof currentMinMax.min === 'number' && isFinite(currentMinMax.min))
+                    ? currentMinMax.min.toFixed(2)
+                    : 'N/A';
+                const maxValue = (typeof currentMinMax.max === 'number' && isFinite(currentMinMax.max))
+                    ? currentMinMax.max.toFixed(2)
+                    : 'N/A';
+
+                legendMin.textContent = minValue;
+                legendMax.textContent = maxValue;
+                legendVariableName.textContent = `Variable: ${colorByKey}`;
+            }
         }
 
         // --- Visualization Logic (Single Polyline) ---
@@ -382,6 +484,9 @@
                     camera.lookAt(center);
                 }
             }
+
+            // Update legend
+            updateLegend(colorByKey);
         }
 
         function displayMetadata(data) {
