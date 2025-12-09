@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,25 +11,25 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #1a1a1a;
             color: #e0e0e0;
             overflow: hidden;
         }
-        
+
         #container {
             display: flex;
             height: 100vh;
         }
-        
+
         #viewer {
             flex: 1;
             position: relative;
             background: #0a0a0a;
         }
-        
+
         #sidebar {
             width: 350px;
             background: #252525;
@@ -36,7 +37,7 @@
             padding: 20px;
             border-left: 1px solid #333;
         }
-        
+
         #upload-zone {
             position: absolute;
             top: 50%;
@@ -51,33 +52,33 @@
             transition: all 0.3s;
             z-index: 10;
         }
-        
+
         #upload-zone:hover {
             border-color: #4a9eff;
             background: rgba(74, 158, 255, 0.1);
         }
-        
+
         #upload-zone.hidden {
             display: none;
         }
-        
+
         #upload-zone h2 {
             margin-bottom: 10px;
             color: #4a9eff;
         }
-        
+
         #upload-zone p {
             color: #888;
         }
-        
+
         input[type="file"] {
             display: none;
         }
-        
+
         .metadata-section {
             margin-bottom: 25px;
         }
-        
+
         .metadata-section h3 {
             color: #4a9eff;
             margin-bottom: 12px;
@@ -85,30 +86,30 @@
             border-bottom: 1px solid #333;
             padding-bottom: 8px;
         }
-        
+
         .metadata-item {
             display: flex;
             justify-content: space-between;
             padding: 8px 0;
             border-bottom: 1px solid #2a2a2a;
         }
-        
+
         .metadata-item:last-child {
             border-bottom: none;
         }
-        
+
         .metadata-label {
             color: #aaa;
             font-size: 13px;
         }
-        
+
         .metadata-value {
             color: #fff;
             font-weight: 500;
             font-size: 13px;
             text-align: right;
         }
-        
+
         #controls {
             position: absolute;
             top: 20px;
@@ -118,7 +119,7 @@
             border-radius: 8px;
             z-index: 5;
         }
-        
+
         #controls button {
             background: #4a9eff;
             color: white;
@@ -129,11 +130,11 @@
             font-size: 13px;
             margin-right: 8px;
         }
-        
+
         #controls button:hover {
             background: #357abd;
         }
-        
+
         .loading {
             position: absolute;
             top: 50%;
@@ -144,6 +145,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="container">
         <div id="viewer">
@@ -151,12 +153,13 @@
                 <h2>📁 Upload Toolpath JSON</h2>
                 <p>Drag and drop your file here or click to browse</p>
                 <input type="file" id="file-input" accept=".json">
-                
+
                 <div style="margin: 20px 0; border-top: 1px solid #555; padding-top: 20px;">
                     <p style="margin-bottom: 10px; font-size: 14px; color: #aaa;">OR select a sample:</p>
-                    <select id="sample-select" style="background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; width: 100%;">
+                    <select id="sample-select"
+                        style="background: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 5px; width: 100%;">
                         <option value="">-- Select a Sample --</option>
-                        </select>
+                    </select>
                 </div>
             </div>
             <div id="controls" class="hidden">
@@ -166,17 +169,19 @@
         </div>
         <div id="sidebar">
             <h2 style="margin-bottom: 20px; color: #4a9eff;">Toolpath Data</h2>
-            
+
             <div class="metadata-section">
                 <h3>Visualization</h3>
                 <div class="metadata-item">
-                    <label for="color-by-select" class="metadata-label" style="color: #eee; font-weight: 500;">Color By:</label>
+                    <label for="color-by-select" class="metadata-label" style="color: #eee; font-weight: 500;">Color
+                        By:</label>
                 </div>
-                <select id="color-by-select" style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 14px; margin-top: 8px;">
+                <select id="color-by-select"
+                    style="width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 14px; margin-top: 8px;">
                     <option value="layer">Default</option>
-                    </select>
+                </select>
             </div>
-            
+
             <div id="metadata-container">
                 <p style="color: #888; text-align: center;">No file loaded</p>
             </div>
@@ -193,7 +198,7 @@
         let metadataContainer = document.getElementById('metadata-container');
         let controlsDiv = document.getElementById('controls');
         let colorBySelect = document.getElementById('color-by-select');
-        
+
         let currentToolpathData = null; // Store the loaded data
         let currentMinMax = { min: 0, max: 1 }; // Store min/max for current gradient
 
@@ -223,7 +228,7 @@
             controls.maxDistance = 5000;
             controls.target.set(0, 0, 0);
             controls.update();
-            
+
             // Add lights
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
@@ -289,15 +294,15 @@
         function getColorFromGradient(value, min, max) {
             if (min === max) return new THREE.Color().setHSL(0.7, 0.56, 0.45);
             const normalized = (value - min) / (max - min);
-            const hue = (1.0 - normalized) * 0.66; 
+            const hue = (1.0 - normalized) * 0.66;
             return new THREE.Color().setHSL(hue, 1.0, 0.5);
         }
 
         // --- Visualization Logic (Single Polyline) ---
-        
+
         function visualizeToolpath(colorByKey = 'layer') {
             if (!currentToolpathData) return;
-            
+
             const data = currentToolpathData;
 
             if (toolpathGroup) {
@@ -306,7 +311,7 @@
 
             toolpathGroup = new THREE.Group();
             const toolpath = data.Toolpath;
-            
+
             if (colorByKey !== 'layer') {
                 currentMinMax = getMinMax(toolpath, colorByKey);
             }
@@ -331,11 +336,11 @@
 
                 for (let i = 0; i < positions.length; i++) {
                     const [x, y, z] = positions[i].split(',').map(Number);
-                    allPositions.push(x, z, y); // Swap Y and Z
+                    allPositions.push(x, z, -y); // Swap Y and Z, negate Y to fix mirroring
 
                     let color;
                     if (colorByKey === 'layer' || !Array.isArray(variableData)) {
-                        const hue = 0.55; 
+                        const hue = 0.55;
                         color = new THREE.Color().setHSL(hue, 1, 0.45);
                     } else {
                         const value = variableData[i];
@@ -353,7 +358,7 @@
 
             const material = new THREE.LineBasicMaterial({ vertexColors: true });
             const line = new THREE.Line(geometry, material);
-            
+
             toolpathGroup.add(line);
             scene.add(toolpathGroup);
 
@@ -363,13 +368,13 @@
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                
+
                 // Distance Multiplier 2.5
                 const fov = camera.fov * (Math.PI / 180);
                 const cameraDistance = (maxDim / 2 / Math.tan(fov / 2)) * 2.5;
-                
+
                 camera.position.set(center.x + cameraDistance, center.y + cameraDistance / 2, center.z + cameraDistance);
-                
+
                 if (controls) {
                     controls.target.copy(center);
                     controls.update();
@@ -431,9 +436,9 @@
         // Central data loader
         function loadToolpathData(jsonContent) {
             try {
-                currentToolpathData = jsonContent; 
+                currentToolpathData = jsonContent;
                 populateColorByOptions(currentToolpathData);
-                visualizeToolpath('layer'); 
+                visualizeToolpath('layer');
                 displayMetadata(currentToolpathData);
                 uploadZone.classList.add('hidden');
                 controlsDiv.classList.remove('hidden');
@@ -490,7 +495,7 @@
                 const newUrl = new URL(window.location);
                 newUrl.searchParams.set('file', fileName);
                 window.history.pushState({}, '', newUrl);
-                
+
                 fetchSampleFile(fileName);
             } else {
                 const newUrl = new URL(window.location);
@@ -508,7 +513,7 @@
                 fileInput.click();
             }
         });
-        
+
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 handleFile(e.target.files[0]);
@@ -545,17 +550,17 @@
             // Reset UI
             uploadZone.classList.remove('hidden');
             controlsDiv.classList.add('hidden');
-            fileInput.value = ''; 
-            sampleSelect.value = ""; 
-            
+            fileInput.value = '';
+            sampleSelect.value = "";
+
             if (toolpathGroup) {
                 scene.remove(toolpathGroup);
-                toolpathGroup = null; 
+                toolpathGroup = null;
             }
             metadataContainer.innerHTML = '<p style="color: #888; text-align: center;">No file loaded</p>';
             currentToolpathData = null;
             colorBySelect.innerHTML = '<option value="layer">Default</option>';
-            
+
             if (controls) {
                 camera.position.set(500, 500, 500);
                 controls.target.set(0, 0, 0);
@@ -572,4 +577,5 @@
         initScene();
     </script>
 </body>
+
 </html>
